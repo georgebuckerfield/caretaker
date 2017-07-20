@@ -21,7 +21,7 @@ func StartServer() {
 }
 
 func backgroundWorker() {
-  clientset, err := GetClientset()
+	clientset, err := GetClientset()
 	if err != nil {
 		panic("[ERROR] No credentials available")
 	}

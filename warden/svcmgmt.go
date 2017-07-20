@@ -2,33 +2,33 @@ package warden
 
 import (
 	"fmt"
-  "os"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-  "k8s.io/client-go/kubernetes"
-  "k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-  api_v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/kubernetes"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
-  meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetClientset() (*kubernetes.Clientset, error) {
-  var clientset *kubernetes.Clientset
-  var err error
+	var clientset *kubernetes.Clientset
+	var err error
 
-  clientset, err = getClientsetInternal()
-  if err == nil {
-    return clientset, nil
-  }
-  clientset, err = getClientsetExternal()
-  if err == nil {
-    return clientset, nil
-  }
-  return nil, fmt.Errorf("[ERROR] No credentials available")
+	clientset, err = getClientsetInternal()
+	if err == nil {
+		return clientset, nil
+	}
+	clientset, err = getClientsetExternal()
+	if err == nil {
+		return clientset, nil
+	}
+	return nil, fmt.Errorf("[ERROR] No credentials available")
 
 }
 
