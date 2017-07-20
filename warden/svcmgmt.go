@@ -16,6 +16,11 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	mgmtAnnotation      = "ipautomanaged"
+	annotationKeyPrefix = "ipaddr"
+)
+
 func GetClientset() (*kubernetes.Clientset, error) {
 	var clientset *kubernetes.Clientset
 	var err error
@@ -81,7 +86,7 @@ func FindIngForFqdn(f string, c *kubernetes.Clientset) (ext_v1.Ingress, error) {
 }
 
 func IsAutoManaged(s *api_v1.Service) bool {
-	if _, ok := s.ObjectMeta.Annotations["ipautomanaged"]; ok {
+	if _, ok := s.ObjectMeta.Annotations[mgmtAnnotation]; ok {
 		return true
 	} else {
 		return false
@@ -130,13 +135,13 @@ func UpdateServiceSpec(iprange string, ns string, s *api_v1.Service, c *kubernet
 
 func updateServiceAnnotation(iprange string, s *api_v1.Service) {
 	now := time.Now()
-	annotationKey := fmt.Sprintf("ipaddr.%s", iprange)
+	annotationKey := fmt.Sprintf("%s.%s", annotationKeyPrefix, iprange)
 	annotationValue := fmt.Sprintf(now.Format("2006-01-02 15:04:05"))
 	s.ObjectMeta.Annotations[annotationKey] = annotationValue
 }
 
 func removeServiceAnnotation(iprange string, s *api_v1.Service) {
-	annotationKey := fmt.Sprintf("ipaddr.%s", iprange)
+	annotationKey := fmt.Sprintf("%s.%s", annotationKeyPrefix, iprange)
 	delete(s.ObjectMeta.Annotations, annotationKey)
 }
 
@@ -145,10 +150,10 @@ func IterateAnnotations(s *api_v1.Service, c *kubernetes.Clientset) error {
 	deadline := now.AddDate(0, 0, -2).Format("2006-01-02 15:04:05")
 	fmt.Printf("The deadline is %s\n", deadline)
 	for a, v := range s.ObjectMeta.Annotations {
-		if strings.HasPrefix(a, "ipaddr") {
+		if strings.HasPrefix(a, annotationKeyPrefix) {
 			if v < deadline {
 				fmt.Printf("Time to remove this rule: %s\n", a)
-				ip := strings.TrimPrefix(a, "ipaddr.")
+				ip := strings.TrimPrefix(a, fmt.Sprintf("%s.", annotationKeyPrefix))
 				err := RemoveIpFromService(ip, s, c)
 				if err != nil {
 					return err
