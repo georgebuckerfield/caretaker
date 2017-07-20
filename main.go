@@ -1,7 +1,7 @@
 package main
 
 import (
-  "github.com/georgebuckerfield/warden/warden"
+  "github.com/georgebuckerfield/kube-warden/warden"
 )
 
 func main(){
