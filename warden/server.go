@@ -1,4 +1,4 @@
-package main
+package warden
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ type WhitelistRequest struct {
 	IpAddress string `json:"ipaddress"`
 }
 
-func main() {
+func StartServer() {
 	go backgroundWorker()
 	http.HandleFunc("/", processRequest)
 	fmt.Printf("Server is ready\n")
@@ -21,9 +21,9 @@ func main() {
 }
 
 func backgroundWorker() {
-	clientset, err := GetClientsetInternal()
+  clientset, err := GetClientset()
 	if err != nil {
-		clientset, err = GetClientsetExternal()
+		panic("[ERROR] No credentials available")
 	}
 	for range time.Tick(time.Second * 30) {
 		services := GetServiceList(clientset)

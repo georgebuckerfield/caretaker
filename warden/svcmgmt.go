@@ -1,21 +1,39 @@
-package main
+package warden
 
 import (
 	"fmt"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	ext_v1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
+  "os"
 	"path/filepath"
 	"strings"
 	"time"
+
+  "k8s.io/client-go/kubernetes"
+  "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+  api_v1 "k8s.io/client-go/pkg/api/v1"
+	ext_v1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+
+  meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func GetClientset() (*kubernetes.Clientset, error) {
+  var clientset *kubernetes.Clientset
+  var err error
+
+  clientset, err = getClientsetInternal()
+  if err == nil {
+    return clientset, nil
+  }
+  clientset, err = getClientsetExternal()
+  if err == nil {
+    return clientset, nil
+  }
+  return nil, fmt.Errorf("[ERROR] No credentials available")
+
+}
+
 // For retrieving credentials outside of a Kubernetes cluster
-func GetClientsetExternal() (*kubernetes.Clientset, error) {
+func getClientsetExternal() (*kubernetes.Clientset, error) {
 	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 
 	// Use the current context from the kubeconfig file
@@ -32,7 +50,7 @@ func GetClientsetExternal() (*kubernetes.Clientset, error) {
 }
 
 // For retrieving credentials inside a Kubernetes cluster
-func GetClientsetInternal() (*kubernetes.Clientset, error) {
+func getClientsetInternal() (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -168,10 +186,7 @@ func ApplyRequestToCluster(data WhitelistRequest) error {
 	var clientset *kubernetes.Clientset
 	var err error
 
-	clientset, err = GetClientsetInternal()
-	if err != nil {
-		clientset, err = GetClientsetExternal()
-	}
+	clientset, err = GetClientset()
 	if err != nil {
 		return err
 	}
