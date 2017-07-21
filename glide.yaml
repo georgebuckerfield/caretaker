@@ -1,4 +1,4 @@
-package: github.com/georgebuckerfield/warden
+package: github.com/georgebuckerfield/caretaker
 import:
 - package: k8s.io/client-go
   version: v3.0.0

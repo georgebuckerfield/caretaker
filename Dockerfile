@@ -1,6 +1,6 @@
 FROM scratch
 
-COPY bin/kube-warden .
+COPY bin/caretaker .
 
 USER 65534:65534
-ENTRYPOINT ["/kube-warden"]
+ENTRYPOINT ["/caretaker"]

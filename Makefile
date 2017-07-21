@@ -1,4 +1,4 @@
-NAME ?= kube-warden
+NAME ?= caretaker
 
 container: build-linux
 	docker build .
