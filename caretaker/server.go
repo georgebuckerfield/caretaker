@@ -3,7 +3,6 @@ package caretaker
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
@@ -13,19 +12,26 @@ type WhitelistRequest struct {
 	IpAddress string `json:"ipaddress"`
 }
 
-func StartServer(interval int) {
+type WhitelistResponse struct {
+	Deadline string
+	Status   string
+}
+
+func StartServer(interval time.Duration) {
 	go backgroundWorker(interval)
 	http.HandleFunc("/", processRequest)
-	fmt.Printf("Server is ready\n")
+	fmt.Printf("[INFO] Server is ready\n")
 	http.ListenAndServe(":8000", nil)
 }
 
-func backgroundWorker(interval int) {
+func backgroundWorker(interval time.Duration) {
+	fmt.Printf("[INFO] Starting background worker\n")
 	clientset, err := GetClientset()
 	if err != nil {
-		panic("[ERROR] No credentials available")
+		fmt.Printf("[ERROR] No credentials available\n")
 	}
-	for range time.Tick(time.Second * interval) {
+	for range time.Tick(interval) {
+		fmt.Printf("[INFO] Starting background cleanup task\n")
 		services := GetServiceList(clientset)
 		for _, s := range services.Items {
 			if IsAutoManaged(&s) {
@@ -39,21 +45,28 @@ func backgroundWorker(interval int) {
 }
 
 func processRequest(w http.ResponseWriter, r *http.Request) {
-	var response string
 	var data WhitelistRequest
+	var response WhitelistResponse
 
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&data)
 
 	if err != nil {
-		response = fmt.Sprintf("%s\n", err)
+		response.Status = fmt.Sprintf("%s", err)
 	} else {
-		if err := ApplyRequestToCluster(data); err != nil {
-			response = fmt.Sprintf("%s\n", err)
+		deadline, err := ApplyRequestToCluster(data)
+		if err != nil {
+			response.Status = fmt.Sprintf("%s", err)
 		} else {
-			response = "Change successfully applied!\n"
+			response.Status = fmt.Sprintf("IP successfully whitelisted until: %s", deadline)
+			response.Deadline = deadline
 		}
 	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
-	io.WriteString(w, response)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResponse)
 }

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	mgmtAnnotation      = "ipautomanaged"
+	mgmtAnnotation      = "service.caretaker.ipautomanaged"
 	annotationKeyPrefix = "ipaddr"
 )
 
@@ -69,7 +69,6 @@ func getClientsetInternal() (*kubernetes.Clientset, error) {
 }
 
 func FindIngForFqdn(f string, c *kubernetes.Clientset) (ext_v1.Ingress, error) {
-	//fmt.Printf("%s\n", f)
 	opts := meta_v1.ListOptions{}
 	ingresses, err := c.ExtensionsV1beta1().Ingresses("").List(opts)
 	if err != nil {
@@ -119,25 +118,29 @@ func applySourceRangesToSpec(r []string, s *api_v1.Service) {
 	s.Spec.LoadBalancerSourceRanges = r
 }
 
-func UpdateServiceSpec(iprange string, ns string, s *api_v1.Service, c *kubernetes.Clientset) error {
+func UpdateServiceSpec(iprange string, ns string, s *api_v1.Service, c *kubernetes.Clientset) (string, error) {
 	ipranges, err := reconcileSourceRanges(s.Spec.LoadBalancerSourceRanges, iprange, "add")
 	if err != nil {
-		return err
+		return "", err
 	}
 	applySourceRangesToSpec(ipranges, s)
-	updateServiceAnnotation(iprange, s)
+	deadline := updateServiceAnnotation(iprange, s)
 	_, err = c.CoreV1().Services(ns).Update(s)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return deadline, nil
 }
 
-func updateServiceAnnotation(iprange string, s *api_v1.Service) {
+func updateServiceAnnotation(iprange string, s *api_v1.Service) string {
 	now := time.Now()
+	deadline := now.AddDate(0, 0, 2).Format("2006-01-02 15:04:05")
+
 	annotationKey := fmt.Sprintf("%s.%s", annotationKeyPrefix, iprange)
-	annotationValue := fmt.Sprintf(now.Format("2006-01-02 15:04:05"))
+	annotationValue := fmt.Sprintf("%s", deadline)
+
 	s.ObjectMeta.Annotations[annotationKey] = annotationValue
+	return deadline
 }
 
 func removeServiceAnnotation(iprange string, s *api_v1.Service) {
@@ -146,12 +149,10 @@ func removeServiceAnnotation(iprange string, s *api_v1.Service) {
 }
 
 func IterateAnnotations(s *api_v1.Service, c *kubernetes.Clientset) error {
-	now := time.Now()
-	deadline := now.AddDate(0, 0, -2).Format("2006-01-02 15:04:05")
-	fmt.Printf("The deadline is %s\n", deadline)
+	now := time.Now().Format("2006-01-02 15:04:05")
 	for a, v := range s.ObjectMeta.Annotations {
 		if strings.HasPrefix(a, annotationKeyPrefix) {
-			if v < deadline {
+			if v < now {
 				fmt.Printf("Time to remove this rule: %s\n", a)
 				ip := strings.TrimPrefix(a, fmt.Sprintf("%s.", annotationKeyPrefix))
 				err := RemoveIpFromService(ip, s, c)
@@ -187,18 +188,18 @@ func RemoveIpFromService(iprange string, s *api_v1.Service, c *kubernetes.Client
 	return nil
 }
 
-func ApplyRequestToCluster(data WhitelistRequest) error {
+func ApplyRequestToCluster(data WhitelistRequest) (string, error) {
 	var clientset *kubernetes.Clientset
 	var err error
 
 	clientset, err = GetClientset()
 	if err != nil {
-		return err
+		return "", err
 	}
 	fmt.Printf("[INFO] Received ip address: %s\n", data.IpAddress)
 	ing, err := FindIngForFqdn(data.Domain, clientset)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	fmt.Printf("[INFO] Ingress name is: %s\n", ing.ObjectMeta.Name)
@@ -211,17 +212,17 @@ func ApplyRequestToCluster(data WhitelistRequest) error {
 		// TODO: find the Nginx controller service dynamically
 		service, _ = clientset.CoreV1().Services("default").Get("ingress-nginx", opts)
 	} else {
-		return fmt.Errorf("[ERROR] Only the Nginx ingress controller is supported.")
+		return "", fmt.Errorf("[ERROR] Only the Nginx ingress controller is supported.")
 	}
 	fmt.Printf("[INFO] The service to modify: %s\n", service.ObjectMeta.Name)
 	if !IsAutoManaged(service) {
-		return fmt.Errorf("[ERROR] The service is not auto-managed.\n")
+		return "", fmt.Errorf("[ERROR] The service is not auto-managed.\n")
 	}
 	namespace := service.ObjectMeta.Namespace
-	err = UpdateServiceSpec(data.IpAddress, namespace, service, clientset)
+	deadline, err := UpdateServiceSpec(data.IpAddress, namespace, service, clientset)
 	if err != nil {
-		return err
+		return "", err
 	}
 	fmt.Printf("[INFO] Successfully applied %s to the service for %s\n", data.IpAddress, data.Domain)
-	return nil
+	return deadline, nil
 }

@@ -1,8 +1,11 @@
 package main
 
 import (
-	"github.com/georgebuckerfield/caretaker/caretaker"
 	"os"
+	"strconv"
+	"time"
+
+	"github.com/georgebuckerfield/caretaker/caretaker"
 )
 
 const (
@@ -13,10 +16,13 @@ const (
 func main() {
 
 	// Interval sets the frequency of the background worker:
-	var interval int
-	if interval := os.Getenv(envConfigInterval); interval == "" {
-		interval = defaultConfigInterval
-	}
+	var interval time.Duration
 
+	envInterval, err := strconv.Atoi(os.Getenv(envConfigInterval))
+	if err != nil {
+		interval = time.Duration(defaultConfigInterval) * time.Second
+	} else {
+		interval = time.Duration(envInterval) * time.Second
+	}
 	caretaker.StartServer(interval)
 }
