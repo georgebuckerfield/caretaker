@@ -18,7 +18,7 @@ import (
 
 const (
 	mgmtAnnotation      = "service.caretaker.ipautomanaged"
-	annotationKeyPrefix = "ipaddr"
+	annotationKeyPrefix = "service.caretaker.ipaddr"
 )
 
 func GetClientset() (*kubernetes.Clientset, error) {
@@ -81,7 +81,7 @@ func FindIngForFqdn(f string, c *kubernetes.Clientset) (ext_v1.Ingress, error) {
 			}
 		}
 	}
-	return ext_v1.Ingress{}, fmt.Errorf("[ERROR] No ingress found for domain %s\n", f)
+	return ext_v1.Ingress{}, fmt.Errorf("[ERROR] No ingress found for domain %s", f)
 }
 
 func IsAutoManaged(s *api_v1.Service) bool {
@@ -96,7 +96,7 @@ func reconcileSourceRanges(c []string, n string, op string) ([]string, error) {
 	if op == "add" {
 		for _, v := range c {
 			if v == n {
-				return nil, fmt.Errorf("[INFO] IP address already has access.")
+				return nil, fmt.Errorf("IP address %s already whitelisted", v)
 			}
 		}
 		c = append(c, n)
@@ -111,7 +111,7 @@ func reconcileSourceRanges(c []string, n string, op string) ([]string, error) {
 		}
 		return nil, fmt.Errorf("[INFO] IP address not found.")
 	}
-	return nil, fmt.Errorf("[ERROR] Unsupported operation %s\n", op)
+	return nil, fmt.Errorf("[ERROR] Unsupported operation %s", op)
 }
 
 func applySourceRangesToSpec(r []string, s *api_v1.Service) {
@@ -153,17 +153,18 @@ func IterateAnnotations(s *api_v1.Service, c *kubernetes.Clientset) error {
 	for a, v := range s.ObjectMeta.Annotations {
 		if strings.HasPrefix(a, annotationKeyPrefix) {
 			if v < now {
-				fmt.Printf("Time to remove this rule: %s\n", a)
+				fmt.Printf("[INFO] Time to remove this rule: %s\n", a)
 				ip := strings.TrimPrefix(a, fmt.Sprintf("%s.", annotationKeyPrefix))
 				err := RemoveIpFromService(ip, s, c)
 				if err != nil {
 					return err
 				}
 			} else {
-				fmt.Printf("Rule for %s has not expired yet\n", a)
+				fmt.Printf("[INFO] Rule for %s has not expired yet\n", a)
 			}
 		}
 	}
+	fmt.Printf("[INFO] Finished checking rules for service %s\n", s.ObjectMeta.Name)
 	return nil
 }
 
