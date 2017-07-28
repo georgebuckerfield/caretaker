@@ -1,4 +1,4 @@
-NAME ?= caretaker
+NAME = caretaker
 
 container: build-linux
 	docker build .
