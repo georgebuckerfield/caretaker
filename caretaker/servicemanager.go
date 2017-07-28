@@ -33,7 +33,7 @@ func GetClientset() (*kubernetes.Clientset, error) {
 	if err == nil {
 		return clientset, nil
 	}
-	return nil, fmt.Errorf("[ERROR] No credentials available")
+	return nil, fmt.Errorf("No credentials available")
 
 }
 
@@ -81,7 +81,7 @@ func FindIngForFqdn(f string, c *kubernetes.Clientset) (ext_v1.Ingress, error) {
 			}
 		}
 	}
-	return ext_v1.Ingress{}, fmt.Errorf("[ERROR] No ingress found for domain %s", f)
+	return ext_v1.Ingress{}, fmt.Errorf("No ingress found for domain %s", f)
 }
 
 func IsAutoManaged(s *api_v1.Service) bool {
@@ -109,9 +109,9 @@ func reconcileSourceRanges(c []string, n string, op string) ([]string, error) {
 				return c[1:], nil
 			}
 		}
-		return nil, fmt.Errorf("[INFO] IP address not found.")
+		return nil, fmt.Errorf("IP address not found.")
 	}
-	return nil, fmt.Errorf("[ERROR] Unsupported operation %s", op)
+	return nil, fmt.Errorf("Unsupported operation %s", op)
 }
 
 func applySourceRangesToSpec(r []string, s *api_v1.Service) {
@@ -153,18 +153,18 @@ func IterateAnnotations(s *api_v1.Service, c *kubernetes.Clientset) error {
 	for a, v := range s.ObjectMeta.Annotations {
 		if strings.HasPrefix(a, annotationKeyPrefix) {
 			if v < now {
-				fmt.Printf("[INFO] Time to remove this rule: %s\n", a)
+				fmt.Printf("Time to remove this rule: %s\n", a)
 				ip := strings.TrimPrefix(a, fmt.Sprintf("%s.", annotationKeyPrefix))
 				err := RemoveIpFromService(ip, s, c)
 				if err != nil {
 					return err
 				}
 			} else {
-				fmt.Printf("[INFO] Rule for %s has not expired yet\n", a)
+				fmt.Printf("Rule for %s has not expired yet\n", a)
 			}
 		}
 	}
-	fmt.Printf("[INFO] Finished checking rules for service %s\n", s.ObjectMeta.Name)
+	fmt.Printf("Finished checking rules for service %s\n", s.ObjectMeta.Name)
 	return nil
 }
 
@@ -197,33 +197,36 @@ func ApplyRequestToCluster(data WhitelistRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("[INFO] Received ip address: %s\n", data.IpAddress)
+	fmt.Printf("Received ip address %s for access to domain %s\n", data.IpAddress, data.Domain)
 	ing, err := FindIngForFqdn(data.Domain, clientset)
 	if err != nil {
 		return "", err
 	}
 
-	fmt.Printf("[INFO] Ingress name is: %s\n", ing.ObjectMeta.Name)
-	fmt.Printf("[INFO] Service name is: %s\n", ing.Spec.Rules[0].IngressRuleValue.HTTP.Paths[0].Backend.ServiceName)
+	fmt.Printf("Ingress name is: %s\n", ing.ObjectMeta.Name)
+	fmt.Printf("Service name is: %s\n", ing.Spec.Rules[0].IngressRuleValue.HTTP.Paths[0].Backend.ServiceName)
 
 	var service *api_v1.Service
 
 	opts := meta_v1.GetOptions{}
 	if ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"] == "nginx" {
 		// TODO: find the Nginx controller service dynamically
-		service, _ = clientset.CoreV1().Services("default").Get("ingress-nginx", opts)
+		service, err = clientset.CoreV1().Services("default").Get("ingress-nginx", opts)
+    if err != nil {
+      return "", err
+    }
 	} else {
-		return "", fmt.Errorf("[ERROR] Only the Nginx ingress controller is supported.")
+		return "", fmt.Errorf("Only the Nginx ingress controller is supported.")
 	}
-	fmt.Printf("[INFO] The service to modify: %s\n", service.ObjectMeta.Name)
+	fmt.Printf("The service to modify: %s\n", service.ObjectMeta.Name)
 	if !IsAutoManaged(service) {
-		return "", fmt.Errorf("[ERROR] The service is not auto-managed.\n")
+		return "", fmt.Errorf("The service is not auto-managed.")
 	}
 	namespace := service.ObjectMeta.Namespace
 	deadline, err := UpdateServiceSpec(data.IpAddress, namespace, service, clientset)
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("[INFO] Successfully applied %s to the service for %s\n", data.IpAddress, data.Domain)
+	fmt.Printf("Successfully applied %s to the service for %s\n", data.IpAddress, data.Domain)
 	return deadline, nil
 }
