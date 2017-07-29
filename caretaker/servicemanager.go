@@ -1,6 +1,7 @@
 package caretaker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -189,9 +190,12 @@ func RemoveIpFromService(iprange string, s *api_v1.Service, c *kubernetes.Client
 	return nil
 }
 
-func ApplyRequestToCluster(data WhitelistRequest) (string, error) {
+func ApplyRequestToCluster(ctx context.Context, data WhitelistRequest) (string, error) {
 	var clientset *kubernetes.Clientset
 	var err error
+	key := contextKey(requestTimeKey)
+
+	fmt.Printf("Request time: %v\n", ctx.Value(key))
 
 	clientset, err = GetClientset()
 	if err != nil {
@@ -212,9 +216,9 @@ func ApplyRequestToCluster(data WhitelistRequest) (string, error) {
 	if ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"] == "nginx" {
 		// TODO: find the Nginx controller service dynamically
 		service, err = clientset.CoreV1().Services("default").Get("ingress-nginx", opts)
-    if err != nil {
-      return "", err
-    }
+		if err != nil {
+			return "", err
+		}
 	} else {
 		return "", fmt.Errorf("Only the Nginx ingress controller is supported.")
 	}
